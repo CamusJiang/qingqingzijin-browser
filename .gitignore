@@ -1,0 +1,19 @@
+*.iml
+.gradle
+/local.properties
+/.idea
+.DS_Store
+/build
+/captures
+.externalNativeBuild
+.cxx
+local.properties
+
+# Python scripts (build tools only)
+manual_git.py
+resize_icon.py
+resize_icon_pillow.py
+
+# Original/source images
+original_photo.jpg
+app_icon.jpg

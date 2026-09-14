@@ -1,0 +1,40 @@
+name: 构建安卓 APK
+
+on:
+  push:
+    branches: [ "main", "master" ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 拉取代码
+        uses: actions/checkout@v4
+
+      - name: 配置 Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: 配置 Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: 安装 Android 构建组件
+        run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
+
+      - name: 配置 Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: 8.7
+
+      - name: 构建 Release APK
+        run: gradle assembleRelease
+
+      - name: 上传 APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: qingqingzijin-release-apk
+          path: app/build/outputs/apk/release/app-release.apk
