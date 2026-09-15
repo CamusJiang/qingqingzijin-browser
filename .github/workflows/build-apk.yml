@@ -19,11 +19,9 @@ jobs:
           distribution: temurin
           java-version: 17
 
-      - name: 配置 Android SDK
-        uses: android-actions/setup-android@v3
-
       - name: 安装 Android 构建组件
-        run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
+        run: |
+          yes | $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager "platforms;android-35" "build-tools;35.0.0" || true
 
       - name: 配置 Gradle
         uses: gradle/actions/setup-gradle@v4
