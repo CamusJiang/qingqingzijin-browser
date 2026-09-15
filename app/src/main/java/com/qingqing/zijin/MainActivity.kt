@@ -1,6 +1,9 @@
 package com.qingqing.zijin
 
 import android.annotation.SuppressLint
+import android.content.AudioAttributes
+import android.content.AudioFocusRequest
+import android.content.AudioManager
 import android.graphics.Color
 import android.os.Build
 import android.os.Bundle
@@ -11,7 +14,6 @@ import android.webkit.WebResourceRequest
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
-import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.ProgressBar
 import androidx.appcompat.app.AppCompatActivity
@@ -21,6 +23,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var webView: WebView
     private lateinit var progressBar: ProgressBar
     private var exitConfirmTime: Long = 0
+    private var audioManager: AudioManager? = null
+    private var audioFocusRequest: AudioFocusRequest? = null
 
     companion object {
         private const val TARGET_URL = "https://music.gdstudio.org/"
@@ -31,9 +35,11 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+
         val rootLayout = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setBackgroundColor(Color.WHITE)
+            setBackgroundColor(Color.BLACK)
         }
 
         progressBar = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply {
@@ -41,7 +47,7 @@ class MainActivity : AppCompatActivity() {
             progress = 0
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
-                dp(3)
+                dp(5)
             )
         }
         rootLayout.addView(progressBar)
@@ -51,12 +57,14 @@ class MainActivity : AppCompatActivity() {
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.MATCH_PARENT
             )
+            setBackgroundColor(Color.BLACK)
         }
         rootLayout.addView(webView)
 
         setContentView(rootLayout)
 
         configureWebView()
+        setupAudioFocus()
 
         if (savedInstanceState != null) {
             webView.restoreState(savedInstanceState)
@@ -75,7 +83,7 @@ class MainActivity : AppCompatActivity() {
             cacheMode = WebSettings.LOAD_DEFAULT
             allowFileAccess = false
             allowContentAccess = false
-            userAgentString = userAgentString.replace("wv", "Chrome")
+            userAgentString = "Mozilla/5.0 (Linux; Android 13; Tablet) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
             useWideViewPort = true
             loadWithOverviewMode = true
             setSupportZoom(false)
@@ -107,9 +115,64 @@ class MainActivity : AppCompatActivity() {
                 progressBar.progress = newProgress
                 progressBar.visibility = if (newProgress in 0..99) View.VISIBLE else View.GONE
             }
+
+            override fun onShowCustomView(view: View?, callback: WebChromeClient.CustomViewCallback?) {
+                super.onShowCustomView(view, callback)
+                hideSystemUI()
+            }
         }
 
         webView.setLayerType(View.LAYER_TYPE_HARDWARE, null)
+    }
+
+    private fun setupAudioFocus() {
+        audioManager = getSystemService(AUDIO_SERVICE) as? AudioManager
+        if (audioManager == null) return
+
+        val audioAttributes = AudioAttributes.Builder()
+            .setUsage(AudioAttributes.USAGE_MEDIA)
+            .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
+            .build()
+
+        val focusListener = AudioManager.OnAudioFocusChangeListener { focusChange ->
+            when (focusChange) {
+                AudioManager.AUDIOFOCUS_LOSS -> {
+                    webView.evaluateJavascript(
+                        "if(window.mediaPlayer){window.mediaPlayer.pause()}else{var v=document.querySelector('audio,video');if(v)v.pause()}",
+                        null
+                    )
+                }
+                AudioManager.AUDIOFOCUS_LOSS_TRANSIENT -> {
+                    webView.evaluateJavascript(
+                        "var v=document.querySelector('audio,video');if(v)v.pause()",
+                        null
+                    )
+                }
+                AudioManager.AUDIOFOCUS_GAIN -> {
+                    webView.evaluateJavascript(
+                        "var v=document.querySelector('audio,video');if(v)v.play()",
+                        null
+                    )
+                }
+            }
+        }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val request = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
+                .setAudioAttributes(audioAttributes)
+                .setAcceptsDelayedFocusGain(true)
+                .setOnAudioFocusChangeListener(focusListener)
+                .build()
+            audioFocusRequest = request
+            audioManager?.requestAudioFocus(request)
+        } else {
+            @Suppress("DEPRECATION")
+            audioManager?.requestAudioFocus(
+                focusListener,
+                AudioManager.STREAM_MUSIC,
+                AudioManager.AUDIOFOCUS_GAIN
+            )
+        }
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
@@ -125,7 +188,7 @@ class MainActivity : AppCompatActivity() {
             val now = System.currentTimeMillis()
             if (now - exitConfirmTime > 2000) {
                 exitConfirmTime = now
-                android.widget.Toast.makeText(this, "再按一次退出青青子衿", android.widget.Toast.LENGTH_SHORT).show()
+                android.widget.Toast.makeText(this, "再按一次退出青青子衿·车机版", android.widget.Toast.LENGTH_SHORT).show()
             } else {
                 super.onBackPressed()
             }
@@ -161,9 +224,13 @@ class MainActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         webView.onResume()
+        hideSystemUI()
     }
 
     override fun onDestroy() {
+        audioFocusRequest?.let { req ->
+            audioManager?.abandonAudioFocusRequest(req)
+        }
         webView.apply {
             stopLoading()
             removeAllViews()

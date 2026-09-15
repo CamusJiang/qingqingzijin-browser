@@ -36,5 +36,5 @@ jobs:
       - name: 上传 APK
         uses: actions/upload-artifact@v4
         with:
-          name: qingqingzijin-release-apk
+          name: qingqingzijin-car-edition-apk
           path: app/build/outputs/apk/release/app-release.apk
